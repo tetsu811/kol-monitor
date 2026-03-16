@@ -1,0 +1,32 @@
+{
+  "openai_api_key": "sk-YOUR_OPENAI_API_KEY_HERE",
+  "openai_model": "gpt-4o-mini",
+  "schedule_hour": 6,
+  "schedule_minute": 0,
+  "max_posts_per_account": 50,
+  "viral_threshold_multiplier": 1.5,
+  "max_llm_analyses_per_run": 50,
+  "database_path": "data/kol_monitor.db",
+  "snapshots_dir": "data/snapshots",
+  "latest_json_path": "data/latest.json",
+  "request_delay_seconds": 4,
+  "accounts": [
+    "docno_body",
+    "skindoctorwang",
+    "dr.kyle_modern_tcm",
+    "ashley_jhengdr",
+    "drbigflower",
+    "tel7260678",
+    "drtzutengweng",
+    "dr_hungchang",
+    "dr.movesmart",
+    "dr.tsen_vision",
+    "quiet.glow.daily",
+    "dr.staywithyou",
+    "peddr.jimmy",
+    "weiofhealth",
+    "doctor.ni.clinic",
+    "drjayychen",
+    "doctorma_ent"
+  ]
+}

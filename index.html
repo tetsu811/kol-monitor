@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>醫療 KOL 爆文監測儀表板</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --primary:#1e3a5f; --primary-light:#2e5fa3; --accent:#e84040;
+    --bg:#f0f4f8; --card:#fff; --border:#dde3ea; --text:#1a2332;
+    --text2:#5a6a80; --tag-bg:#eef2ff;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text);font-size:14px}
+
+  /* ── Top bar ── */
+  header{background:var(--primary);color:#fff;padding:12px 24px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+  header h1{font-size:18px;font-weight:700;letter-spacing:.5px}
+  header .meta{font-size:12px;opacity:.75}
+  #lastUpdate{font-size:11px;opacity:.6;margin-top:2px}
+
+  /* ── Tabs ── */
+  .tabs{display:flex;background:var(--primary);border-bottom:2px solid var(--primary-light);padding:0 16px;gap:4px}
+  .tab-btn{padding:10px 18px;color:rgba(255,255,255,.65);cursor:pointer;border:none;background:none;font-size:13px;font-family:inherit;border-bottom:3px solid transparent;transition:.2s;white-space:nowrap}
+  .tab-btn:hover{color:#fff}
+  .tab-btn.active{color:#fff;border-bottom-color:#64b5f6;font-weight:600}
+
+  /* ── Main layout ── */
+  main{padding:20px 24px;max-width:1400px;margin:0 auto}
+
+  /* ── Cards grid ── */
+  .grid{display:grid;gap:16px}
+  .grid-2{grid-template-columns:repeat(auto-fill,minmax(320px,1fr))}
+  .grid-3{grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
+
+  .card{background:var(--card);border-radius:12px;border:1px solid var(--border);padding:16px;transition:box-shadow .2s}
+  .card:hover{box-shadow:0 4px 16px rgba(0,0,0,.1)}
+
+  /* ── Post card ── */
+  .post-card{position:relative;cursor:pointer}
+  .post-card .rank{position:absolute;top:12px;right:12px;font-size:22px;font-weight:700;color:#dde3ea}
+  .post-card .handle{font-size:12px;color:var(--primary-light);font-weight:600;margin-bottom:4px}
+  .post-card .excerpt{font-size:13px;color:var(--text);line-height:1.6;margin-bottom:10px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .post-card .metrics{display:flex;gap:12px;font-size:12px;color:var(--text2);margin-bottom:8px}
+  .post-card .metrics span{display:flex;align-items:center;gap:3px}
+  .post-card .llm-box{background:#f8faff;border-radius:8px;padding:10px;margin-top:8px;border-left:3px solid var(--primary-light)}
+  .post-card .llm-box .llm-summary{font-size:12px;line-height:1.6;color:var(--text2)}
+
+  /* ── Badges ── */
+  .badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;margin-right:4px;margin-bottom:4px}
+  .badge-fear{background:#fde8e8;color:#c0392b}
+  .badge-counter{background:#fef3e2;color:#c0711a}
+  .badge-resonance{background:#f0e6ff;color:#7b2fbe}
+  .badge-curiosity{background:#dbeafe;color:#1d4ed8}
+  .badge-useful{background:#d1fae5;color:#065f46}
+  .badge-controversy{background:#fee2e2;color:#991b1b}
+  .badge-emotion{background:#fce7f3;color:#9d174d}
+  .badge-other{background:#f1f5f9;color:#475569}
+  .badge-specialty{background:var(--tag-bg);color:var(--primary-light)}
+
+  /* ── Viral score gauge ── */
+  .vs-wrap{display:flex;align-items:center;gap:8px}
+  .vs-circle{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0}
+  .vs-low{background:#94a3b8}
+  .vs-mid{background:#f59e0b}
+  .vs-high{background:#ef4444}
+
+  /* ── KOL card ── */
+  .kol-card{display:flex;flex-direction:column;gap:10px}
+  .kol-card .kol-header{display:flex;align-items:center;gap:10px}
+  .kol-card .avatar{width:48px;height:48px;border-radius:50%;object-fit:cover;background:#eef2ff;border:2px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px;overflow:hidden}
+  .kol-card .kol-info .name{font-weight:700;font-size:14px}
+  .kol-card .kol-info .at{font-size:12px;color:var(--text2)}
+  .kol-card .kol-stats{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .kol-card .stat{background:#f8faff;border-radius:6px;padding:6px 8px;text-align:center}
+  .kol-card .stat .val{font-size:16px;font-weight:700;color:var(--primary)}
+  .kol-card .stat .lbl{font-size:10px;color:var(--text2)}
+  .kol-card .top-post{background:#fff8f0;border-radius:8px;padding:8px;font-size:12px;border:1px solid #fde8c9}
+  .kol-card .top-post .tp-label{font-size:10px;color:#c0711a;font-weight:600;margin-bottom:3px}
+
+  /* ── Table ── */
+  .table-wrap{overflow-x:auto;border-radius:12px;border:1px solid var(--border);background:var(--card)}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  thead th{background:var(--primary);color:#fff;padding:10px 12px;text-align:left;font-weight:600;white-space:nowrap;cursor:pointer;user-select:none}
+  thead th:hover{background:var(--primary-light)}
+  thead th .sort-arrow{margin-left:4px;opacity:.5}
+  tbody tr{border-bottom:1px solid var(--border);transition:background .15s}
+  tbody tr:hover{background:#f0f7ff}
+  tbody td{padding:9px 12px;vertical-align:middle}
+  .text-cell{max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .num{text-align:right;font-variant-numeric:tabular-nums}
+
+  /* ── Filter bar ── */
+  .filter-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center}
+  .filter-bar input,.filter-bar select{padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;background:#fff;color:var(--text);outline:none;transition:border .2s}
+  .filter-bar input:focus,.filter-bar select:focus{border-color:var(--primary-light)}
+  .filter-bar input{min-width:200px}
+
+  /* ── Modal / detail panel ── */
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;display:none;align-items:center;justify-content:center;padding:20px}
+  .modal-overlay.open{display:flex}
+  .modal{background:#fff;border-radius:16px;max-width:680px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+  .modal-header{padding:20px 24px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start}
+  .modal-body{padding:20px 24px}
+  .modal-close{background:none;border:none;font-size:22px;cursor:pointer;color:var(--text2);line-height:1}
+  .section-title{font-size:12px;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.8px;margin:16px 0 8px}
+  .analysis-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+  .analysis-item{background:#f8faff;border-radius:8px;padding:10px}
+  .analysis-item .ai-label{font-size:10px;color:var(--text2);margin-bottom:3px}
+  .analysis-item .ai-value{font-size:13px;font-weight:600;color:var(--text)}
+  .full-text{background:#f8faff;border-radius:8px;padding:12px;font-size:13px;line-height:1.8;white-space:pre-wrap;word-break:break-word;max-height:300px;overflow-y:auto}
+
+  /* ── Charts ── */
+  .chart-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:20px}
+  .chart-card{background:var(--card);border-radius:12px;border:1px solid var(--border);padding:20px}
+  .chart-card h3{font-size:14px;font-weight:700;color:var(--primary);margin-bottom:16px}
+  .chart-wrap{position:relative;height:260px}
+
+  /* ── Summary stats bar ── */
+  .stats-bar{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:20px}
+  .stat-box{background:var(--card);border-radius:10px;border:1px solid var(--border);padding:14px;text-align:center}
+  .stat-box .sb-val{font-size:24px;font-weight:700;color:var(--primary)}
+  .stat-box .sb-lbl{font-size:11px;color:var(--text2);margin-top:3px}
+
+  /* ── Empty state ── */
+  .empty{text-align:center;padding:60px 20px;color:var(--text2)}
+  .empty .e-icon{font-size:48px;margin-bottom:12px}
+  .empty p{font-size:14px}
+  .empty .e-hint{font-size:12px;margin-top:8px;opacity:.7}
+
+  /* ── Loading ── */
+  .loading{display:flex;align-items:center;justify-content:center;padding:80px;flex-direction:column;gap:12px;color:var(--text2)}
+  .spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* ── Misc ── */
+  .tag{display:inline-block;padding:1px 7px;border-radius:12px;font-size:11px;background:#eef2ff;color:var(--primary-light);margin-right:3px}
+  a.link{color:var(--primary-light);text-decoration:none}
+  a.link:hover{text-decoration:underline}
+  .verified-icon{color:#1d9bf0;font-size:13px;margin-left:3px}
+  .hidden{display:none!important}
+  .tab-content{display:none}
+  .tab-content.active{display:block}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>🏥 醫療 KOL 爆文監測儀表板</h1>
+    <div id="lastUpdate">資料載入中…</div>
+  </div>
+  <div class="meta" id="headerMeta">—</div>
+</header>
+
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTab('today')">🔥 今日爆文</button>
+  <button class="tab-btn" onclick="switchTab('kol')">👥 帳號總覽</button>
+  <button class="tab-btn" onclick="switchTab('db')">📋 文章資料庫</button>
+  <button class="tab-btn" onclick="switchTab('detail')">🔬 分析詳情</button>
+  <button class="tab-btn" onclick="switchTab('trends')">📈 趨勢圖表</button>
+</div>
+
+<main>
+  <div id="mainLoading" class="loading"><div class="spinner"></div><span>載入資料中…</span></div>
+
+  <!-- ── Tab 1: Today's viral posts ── -->
+  <div id="tab-today" class="tab-content active hidden">
+    <div class="stats-bar" id="summaryStats"></div>
+    <div class="grid grid-2" id="viralGrid"></div>
+  </div>
+
+  <!-- ── Tab 2: KOL overview ── -->
+  <div id="tab-kol" class="tab-content hidden">
+    <div class="filter-bar">
+      <select id="kolSort" onchange="renderKOL()">
+        <option value="follower">依追蹤數排序</option>
+        <option value="er7d">依 7 日平均互動率</option>
+        <option value="posts">依發文數</option>
+      </select>
+      <select id="kolSpecialty" onchange="renderKOL()">
+        <option value="">所有科別</option>
+      </select>
+    </div>
+    <div class="grid grid-3" id="kolGrid"></div>
+  </div>
+
+  <!-- ── Tab 3: Database table ── -->
+  <div id="tab-db" class="tab-content hidden">
+    <div class="filter-bar">
+      <input id="dbSearch" placeholder="🔍 搜尋文章內容…" oninput="renderDB()"/>
+      <select id="dbHandle" onchange="renderDB()"><option value="">所有帳號</option></select>
+      <select id="dbSpecFilter" onchange="renderDB()"><option value="">所有科別</option></select>
+      <select id="dbMedia" onchange="renderDB()">
+        <option value="">所有類型</option>
+        <option value="text">純文字</option>
+        <option value="image">圖文</option>
+        <option value="video">影片</option>
+        <option value="carousel">輪播</option>
+      </select>
+      <select id="dbViral" onchange="renderDB()">
+        <option value="">全部</option>
+        <option value="1">爆文</option>
+        <option value="0">一般</option>
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table id="dbTable">
+        <thead>
+          <tr>
+            <th onclick="sortDB('handle')">帳號 <span class="sort-arrow">↕</span></th>
+            <th onclick="sortDB('post_timestamp')">發文時間 <span class="sort-arrow">↕</span></th>
+            <th>內容摘要</th>
+            <th>科別</th>
+            <th onclick="sortDB('like_count')" class="num">讚 <span class="sort-arrow">↕</span></th>
+            <th onclick="sortDB('comment_count')" class="num">留言 <span class="sort-arrow">↕</span></th>
+            <th onclick="sortDB('repost_count')" class="num">轉發 <span class="sort-arrow">↕</span></th>
+            <th onclick="sortDB('engagement_rate')" class="num">互動率 <span class="sort-arrow">↕</span></th>
+            <th>爆文</th>
+            <th>分析</th>
+          </tr>
+        </thead>
+        <tbody id="dbBody"></tbody>
+      </table>
+    </div>
+    <div id="dbPager" style="text-align:center;padding:12px;font-size:12px;color:var(--text2)"></div>
+  </div>
+
+  <!-- ── Tab 4: Detail panel ── -->
+  <div id="tab-detail" class="tab-content hidden">
+    <div class="empty" id="detailEmpty">
+      <div class="e-icon">🔬</div>
+      <p>請從「今日爆文」或「文章資料庫」點擊文章查看詳細分析</p>
+      <div class="e-hint">分析資料由 GPT-4o-mini 生成</div>
+    </div>
+    <div id="detailContent" class="hidden"></div>
+  </div>
+
+  <!-- ── Tab 5: Trends ── -->
+  <div id="tab-trends" class="tab-content hidden">
+    <div class="chart-grid" id="chartGrid"></div>
+  </div>
+</main>
+
+<!-- ── Modal ── -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal" id="modal">
+    <div class="modal-header">
+      <div id="modalTitle"></div>
+      <button class="modal-close" onclick="document.getElementById('modalOverlay').classList.remove('open')">×</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// DATA LAYER
+// ═══════════════════════════════════════════════════════
+let G = { accounts: [], posts: [], generated_at: null };
+let dbSort = { col: 'like_count', asc: false };
+let dbPage = 0;
+const DB_PAGE_SIZE = 50;
+
+// Derived maps (built after load)
+let specialtyMap = {};   // handle → primary_specialty
+let followerMap  = {};   // handle → follower_count
+
+function loadData() {
+  const paths = ['../data/latest.json', 'latest.json', './data/latest.json'];
+  tryLoad(paths, 0);
+}
+
+function tryLoad(paths, i) {
+  if (i >= paths.length) {
+    useDemoData();
+    return;
+  }
+  fetch(paths[i] + '?t=' + Date.now())
+    .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(d => { G = d; onDataLoaded(); })
+    .catch(() => tryLoad(paths, i + 1));
+}
+
+function onDataLoaded() {
+  document.getElementById('mainLoading').style.display = 'none';
+
+  // Build derived maps
+  G.accounts.forEach(a => {
+    specialtyMap[a.handle] = a.primary_specialty || '';
+    followerMap[a.handle]  = a.follower_count || 0;
+  });
+
+  // Inject engagement_rate if missing
+  G.posts.forEach(p => {
+    if (!p.engagement_rate) {
+      const f = followerMap[p.handle] || 1000;
+      p.engagement_rate = ((p.like_count || 0) + (p.comment_count || 0) + (p.repost_count || 0)) / f * 100;
+    }
+    p._specialty = specialtyMap[p.handle] || '';
+  });
+
+  // Update header
+  const dt = G.generated_at ? new Date(G.generated_at).toLocaleString('zh-TW') : '—';
+  document.getElementById('lastUpdate').textContent = '資料更新：' + dt;
+  document.getElementById('headerMeta').textContent =
+    G.accounts.length + ' 帳號 · ' + G.posts.length + ' 篇文章';
+
+  populateFilters();
+  renderToday();
+  renderKOL();
+  renderDB();
+  renderCharts();
+
+  document.querySelectorAll('.tab-content').forEach(el => {
+    if (el.id === 'tab-today') el.classList.remove('hidden');
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// DEMO DATA (when no real JSON available)
+// ═══════════════════════════════════════════════════════
+function useDemoData() {
+  const demo_accounts = [
+    {handle:'docno_body',display_name:'醫師小白',follower_count:85000,primary_specialty:'復健科',confidence_score:0.9,bio:'復健科醫師，分享正確運動與復健觀念'},
+    {handle:'skindoctorwang',display_name:'王醫師皮膚科',follower_count:120000,primary_specialty:'皮膚科',confidence_score:0.95,bio:'皮膚科專科醫師'},
+    {handle:'dr.kyle_modern_tcm',display_name:'Kyle中醫師',follower_count:45000,primary_specialty:'中醫',confidence_score:0.88,bio:'現代中醫，傳統智慧結合現代科學'},
+    {handle:'ashley_jhengdr',display_name:'Ashley醫師',follower_count:65000,primary_specialty:'婦產科',confidence_score:0.9,bio:'婦產科醫師'},
+    {handle:'drbigflower',display_name:'大花醫師',follower_count:200000,primary_specialty:'家醫科',confidence_score:0.85,bio:'家庭醫學科，全民健康倡導'},
+    {handle:'drtzutengweng',display_name:'翁祖騰醫師',follower_count:38000,primary_specialty:'內科',confidence_score:0.82,bio:'內科醫師'},
+    {handle:'dr_hungchang',display_name:'洪章醫師',follower_count:52000,primary_specialty:'外科',confidence_score:0.8,bio:'一般外科'},
+    {handle:'dr.movesmart',display_name:'MoveSmart醫師',follower_count:73000,primary_specialty:'運動醫學',confidence_score:0.87,bio:'運動醫學專科'},
+  ];
+
+  const contents = [
+    '你知道嗎？每天喝超過3杯咖啡，竟然對心臟有這些影響…',
+    '很多人不知道，這個常見症狀其實是身體發出的緊急警告信號！',
+    '作為醫師，我最想告訴你：健康檢查這5個項目絕對不能省',
+    '昨天有個病人來找我，說他靠網路資訊自己診斷，結果差點釀大禍',
+    '膝蓋痛不一定是退化！這3個姿勢錯誤才是真正的元凶',
+    '這篇文章可能會顛覆你對睡眠的認知——睡太多也是病？',
+    '從醫20年，我見過最讓人心疼的案例：他只是忙，忘了照顧自己',
+    '皮膚出現這些變化，千萬不要以為只是「壓力大」！',
+    '最近門診遇到很多媽媽問這個問題，決定寫出來讓更多人知道',
+    '三高患者最常問我：「醫師，我可以吃XX嗎？」今天統一回答',
+  ];
+
+  const posts = [];
+  let id = 1000;
+  const now = new Date();
+
+  demo_accounts.forEach(acc => {
+    for (let i = 0; i < 8; i++) {
+      const likes = Math.floor(Math.random() * 3000) + 100;
+      const comments = Math.floor(likes * (0.05 + Math.random() * 0.15));
+      const reposts = Math.floor(likes * (0.02 + Math.random() * 0.08));
+      const er = (likes + comments + reposts) / acc.follower_count * 100;
+      const isViral = er > 3 || likes > 1500;
+      const dt = new Date(now - (i * 4 + Math.random() * 3) * 3600000);
+
+      posts.push({
+        post_id: String(id++),
+        handle: acc.handle,
+        post_url: 'https://www.threads.com/@' + acc.handle,
+        content_text: contents[Math.floor(Math.random() * contents.length)],
+        media_type: ['text','image','text','text','carousel','text','image','text'][i % 8],
+        post_timestamp: dt.toISOString(),
+        like_count: likes,
+        comment_count: comments,
+        repost_count: reposts,
+        quote_count: Math.floor(reposts * 0.3),
+        view_count: null,
+        is_viral_flag: isViral ? 1 : 0,
+        engagement_rate: er,
+        _specialty: acc.primary_specialty,
+        // Mock LLM
+        hook_type: ['恐懼','反直覺','強烈共鳴','好奇','實用資訊'][Math.floor(Math.random()*5)],
+        hook_sentence: contents[Math.floor(Math.random() * contents.length)].split('！')[0] + '！',
+        hook_analysis: '開頭直接使用反直覺觀點，成功引發讀者好奇，促使繼續閱讀。',
+        content_structure: ['知識點乾貨','故事敘述','衛教警示','問答互動'][Math.floor(Math.random()*4)],
+        visual_strategy: '純文字段落設計簡潔，善用換行製造節奏感',
+        controversy_flag: Math.random() > 0.7 ? 1 : 0,
+        emotional_resonance: Math.random() > 0.5 ? 1 : 0,
+        media_format: '純文字',
+        viral_score: Math.floor(Math.random() * 4) + 6,
+        summary: '此篇文章成功運用情緒鉤子，將專業知識與生活情境結合，讓讀者產生強烈共鳴並主動分享。',
+      });
+    }
+  });
+
+  G = { accounts: demo_accounts, posts, generated_at: now.toISOString() };
+  onDataLoaded();
+  document.getElementById('headerMeta').textContent += ' (示範資料)';
+}
+
+// ═══════════════════════════════════════════════════════
+// TAB SWITCHING
+// ═══════════════════════════════════════════════════════
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach((b, i) => {
+    const names = ['today','kol','db','detail','trends'];
+    b.classList.toggle('active', names[i] === name);
+  });
+  document.querySelectorAll('.tab-content').forEach(el => {
+    el.classList.remove('active');
+    el.classList.add('hidden');
+  });
+  const el = document.getElementById('tab-' + name);
+  el.classList.add('active');
+  el.classList.remove('hidden');
+}
+
+// ═══════════════════════════════════════════════════════
+// TAB 1: TODAY'S VIRAL POSTS
+// ═══════════════════════════════════════════════════════
+function renderToday() {
+  const viral = G.posts
+    .filter(p => p.is_viral_flag || p.viral_score >= 7)
+    .sort((a, b) => (b.like_count + b.comment_count + b.repost_count) -
+                    (a.like_count + a.comment_count + a.repost_count))
+    .slice(0, 20);
+
+  // Summary stats
+  const totalPosts    = G.posts.length;
+  const totalAccounts = G.accounts.length;
+  const totalLikes    = G.posts.reduce((s, p) => s + (p.like_count || 0), 0);
+  const topViral      = viral.length;
+  const analyzed      = G.posts.filter(p => p.viral_score).length;
+
+  document.getElementById('summaryStats').innerHTML = [
+    ['帳號數', totalAccounts, '👥'],
+    ['文章總數', totalPosts.toLocaleString(), '📝'],
+    ['總讚數', fmtNum(totalLikes), '❤️'],
+    ['爆文數', topViral, '🔥'],
+    ['已分析', analyzed, '🤖'],
+  ].map(([lbl, val, icon]) => `
+    <div class="stat-box">
+      <div class="sb-val">${icon} ${val}</div>
+      <div class="sb-lbl">${lbl}</div>
+    </div>`).join('');
+
+  if (!viral.length) {
+    document.getElementById('viralGrid').innerHTML =
+      '<div class="empty"><div class="e-icon">📭</div><p>今日尚無爆文資料</p><div class="e-hint">執行 python main.py run 爬取資料</div></div>';
+    return;
+  }
+
+  document.getElementById('viralGrid').innerHTML = viral.map((p, i) => `
+    <div class="card post-card" onclick="showDetail('${p.post_id}')">
+      <div class="rank">#${i + 1}</div>
+      <div class="handle">@${p.handle}
+        ${p._specialty ? `<span class="badge badge-specialty">${p._specialty}</span>` : ''}
+      </div>
+      <div class="excerpt">${escHtml(p.content_text || '[無文字內容]')}</div>
+      <div class="metrics">
+        <span>❤️ ${fmtNum(p.like_count)}</span>
+        <span>💬 ${fmtNum(p.comment_count)}</span>
+        <span>🔁 ${fmtNum(p.repost_count)}</span>
+        ${p.view_count ? `<span>👁 ${fmtNum(p.view_count)}</span>` : ''}
+        <span style="margin-left:auto;color:var(--primary-light)">${p.engagement_rate ? p.engagement_rate.toFixed(3) + '%' : ''}</span>
+      </div>
+      <div style="margin-bottom:6px">${hookBadge(p.hook_type)}${flagBadges(p)}</div>
+      ${p.summary ? `
+      <div class="llm-box">
+        ${p.viral_score ? `<div class="vs-wrap" style="margin-bottom:6px">${vsGauge(p.viral_score)}<span style="font-size:11px;color:var(--text2)">Viral Score</span></div>` : ''}
+        <div class="llm-summary">${escHtml(p.summary)}</div>
+      </div>` : '<div style="font-size:11px;color:var(--text2);margin-top:6px">🤖 等待 LLM 分析…</div>'}
+    </div>`).join('');
+}
+
+// ═══════════════════════════════════════════════════════
+// TAB 2: KOL OVERVIEW
+// ═══════════════════════════════════════════════════════
+function renderKOL() {
+  const sortBy    = document.getElementById('kolSort').value;
+  const filterSpec = document.getElementById('kolSpecialty').value;
+
+  let accs = [...G.accounts];
+  if (filterSpec) accs = accs.filter(a => (a.primary_specialty || '') === filterSpec);
+
+  // Compute 7-day avg ER per account
+  const cutoff7d = new Date(Date.now() - 7 * 86400000).toISOString();
+  accs.forEach(a => {
+    const recent = G.posts.filter(p => p.handle === a.handle && p.post_timestamp >= cutoff7d);
+    a._er7d = recent.length
+      ? recent.reduce((s, p) => s + (p.engagement_rate || 0), 0) / recent.length
+      : 0;
+    a._recentPosts = recent.length;
+    a._topPost = G.posts.filter(p => p.handle === a.handle)
+      .sort((x, y) => (y.like_count || 0) - (x.like_count || 0))[0];
+  });
+
+  accs.sort((a, b) => {
+    if (sortBy === 'follower') return (b.follower_count || 0) - (a.follower_count || 0);
+    if (sortBy === 'er7d')     return b._er7d - a._er7d;
+    if (sortBy === 'posts')    return (b.post_count || b._recentPosts || 0) - (a.post_count || a._recentPosts || 0);
+    return 0;
+  });
+
+  if (!accs.length) {
+    document.getElementById('kolGrid').innerHTML =
+      '<div class="empty"><div class="e-icon">🔍</div><p>無符合條件的帳號</p></div>';
+    return;
+  }
+
+  document.getElementById('kolGrid').innerHTML = accs.map(a => `
+    <div class="card kol-card">
+      <div class="kol-header">
+        <div class="avatar">${a.avatar_url
+          ? `<img src="${escHtml(a.avatar_url)}" alt="${escHtml(a.handle)}" style="width:100%;height:100%;border-radius:50%">`
+          : '👨‍⚕️'}</div>
+        <div class="kol-info">
+          <div class="name">${escHtml(a.display_name || a.handle)}${a.verified ? '<span class="verified-icon">✓</span>' : ''}</div>
+          <div class="at">@${a.handle}</div>
+          ${a.primary_specialty ? `<div style="margin-top:3px"><span class="badge badge-specialty">${a.primary_specialty}</span></div>` : ''}
+        </div>
+      </div>
+      ${a.bio ? `<div style="font-size:12px;color:var(--text2);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${escHtml(a.bio)}</div>` : ''}
+      <div class="kol-stats">
+        <div class="stat"><div class="val">${fmtNum(a.follower_count)}</div><div class="lbl">追蹤者</div></div>
+        <div class="stat"><div class="val">${a._er7d.toFixed(3)}%</div><div class="lbl">7日均互動率</div></div>
+        <div class="stat"><div class="val">${a._recentPosts}</div><div class="lbl">近7日發文</div></div>
+        <div class="stat"><div class="val">${a.confidence_score ? (a.confidence_score * 100).toFixed(0) + '%' : '—'}</div><div class="lbl">科別信心度</div></div>
+      </div>
+      ${a._topPost ? `
+      <div class="top-post" onclick="showDetail('${a._topPost.post_id}')" style="cursor:pointer">
+        <div class="tp-label">🏆 最高互動文章</div>
+        <div style="font-size:12px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">
+          ${escHtml(a._topPost.content_text || '[圖片/影片]')}
+        </div>
+        <div style="font-size:11px;color:var(--text2);margin-top:4px">❤️ ${fmtNum(a._topPost.like_count)} · 💬 ${fmtNum(a._topPost.comment_count)}</div>
+      </div>` : ''}
+      <div>
+        <a class="link" style="font-size:12px" href="https://www.threads.com/@${a.handle}" target="_blank">查看 Threads ↗</a>
+      </div>
+    </div>`).join('');
+}
+
+// ═══════════════════════════════════════════════════════
+// TAB 3: DATABASE TABLE
+// ═══════════════════════════════════════════════════════
+function populateFilters() {
+  // Handle filter
+  const hSel = document.getElementById('dbHandle');
+  G.accounts.forEach(a => {
+    const opt = document.createElement('option');
+    opt.value = a.handle;
+    opt.textContent = '@' + a.handle + (a.display_name ? ` (${a.display_name})` : '');
+    hSel.appendChild(opt);
+  });
+
+  // Specialty filters
+  const specs = [...new Set(G.accounts.map(a => a.primary_specialty).filter(Boolean))].sort();
+  ['kolSpecialty', 'dbSpecFilter'].forEach(id => {
+    const sel = document.getElementById(id);
+    specs.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s; opt.textContent = s;
+      sel.appendChild(opt);
+    });
+  });
+}
+
+function getFilteredPosts() {
+  const search   = (document.getElementById('dbSearch').value || '').toLowerCase();
+  const handle   = document.getElementById('dbHandle').value;
+  const spec     = document.getElementById('dbSpecFilter').value;
+  const media    = document.getElementById('dbMedia').value;
+  const viral    = document.getElementById('dbViral').value;
+
+  return G.posts.filter(p => {
+    if (handle && p.handle !== handle) return false;
+    if (spec   && p._specialty !== spec) return false;
+    if (media  && p.media_type !== media) return false;
+    if (viral  === '1' && !p.is_viral_flag) return false;
+    if (viral  === '0' && p.is_viral_flag) return false;
+    if (search && !(p.content_text || '').toLowerCase().includes(search)) return false;
+    return true;
+  }).sort((a, b) => {
+    const va = a[dbSort.col] ?? 0, vb = b[dbSort.col] ?? 0;
+    if (dbSort.col === 'post_timestamp') return dbSort.asc ? va.localeCompare(vb) : vb.localeCompare(va);
+    return dbSort.asc ? va - vb : vb - va;
+  });
+}
+
+function renderDB() {
+  dbPage = 0;
+  renderDBPage();
+}
+
+function renderDBPage() {
+  const filtered = getFilteredPosts();
+  const start    = dbPage * DB_PAGE_SIZE;
+  const page     = filtered.slice(start, start + DB_PAGE_SIZE);
+
+  document.getElementById('dbBody').innerHTML = page.map(p => `
+    <tr onclick="showDetail('${p.post_id}')" style="cursor:pointer">
+      <td><a class="link" href="https://www.threads.com/@${p.handle}" target="_blank" onclick="event.stopPropagation()">@${p.handle}</a></td>
+      <td style="white-space:nowrap;font-size:12px">${fmtDate(p.post_timestamp)}</td>
+      <td class="text-cell">${escHtml(p.content_text || '[無文字]')}</td>
+      <td>${p._specialty ? `<span class="tag">${p._specialty}</span>` : '<span style="color:var(--text2);font-size:11px">—</span>'}</td>
+      <td class="num">${fmtNum(p.like_count)}</td>
+      <td class="num">${fmtNum(p.comment_count)}</td>
+      <td class="num">${fmtNum(p.repost_count)}</td>
+      <td class="num">${p.engagement_rate ? p.engagement_rate.toFixed(3) + '%' : '—'}</td>
+      <td style="text-align:center">${p.is_viral_flag ? '🔥' : ''}</td>
+      <td style="text-align:center">${p.viral_score ? vsGauge(p.viral_score) : '<span style="font-size:11px;color:var(--text2)">—</span>'}</td>
+    </tr>`).join('') ||
+    '<tr><td colspan="10" style="text-align:center;padding:30px;color:var(--text2)">無符合條件的文章</td></tr>';
+
+  const total = filtered.length;
+  const pages = Math.ceil(total / DB_PAGE_SIZE);
+  document.getElementById('dbPager').innerHTML = total > DB_PAGE_SIZE ? `
+    共 ${total} 筆 &nbsp;
+    <button onclick="dbPageNav(-1)" ${dbPage===0?'disabled':''} style="padding:2px 8px;cursor:pointer">‹</button>
+    第 ${dbPage+1} / ${pages} 頁
+    <button onclick="dbPageNav(1)" ${dbPage>=pages-1?'disabled':''} style="padding:2px 8px;cursor:pointer">›</button>
+  ` : `共 ${total} 筆`;
+}
+
+function dbPageNav(d) { dbPage = Math.max(0, dbPage + d); renderDBPage(); }
+function sortDB(col) {
+  if (dbSort.col === col) dbSort.asc = !dbSort.asc;
+  else { dbSort.col = col; dbSort.asc = false; }
+  renderDB();
+}
+
+// ═══════════════════════════════════════════════════════
+// TAB 4: DETAIL VIEW
+// ═══════════════════════════════════════════════════════
+function showDetail(postId) {
+  const p = G.posts.find(x => x.post_id === postId);
+  if (!p) return;
+
+  switchTab('detail');
+  document.getElementById('detailEmpty').classList.add('hidden');
+  const dc = document.getElementById('detailContent');
+  dc.classList.remove('hidden');
+
+  dc.innerHTML = `
+    <div style="max-width:780px;margin:0 auto">
+      <!-- Header -->
+      <div class="card" style="margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-size:13px;color:var(--text2)">@${p.handle}
+              ${p._specialty ? `· <span class="badge badge-specialty">${p._specialty}</span>` : ''}
+            </div>
+            <div style="font-size:12px;color:var(--text2);margin-top:4px">${fmtDate(p.post_timestamp)}</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            ${hookBadge(p.hook_type)}${flagBadges(p)}
+            ${p.viral_score ? vsGauge(p.viral_score) : ''}
+          </div>
+        </div>
+
+        <!-- Metrics row -->
+        <div style="display:flex;gap:20px;margin:14px 0 0;flex-wrap:wrap">
+          ${[['❤️','讚',p.like_count],['💬','留言',p.comment_count],['🔁','轉發',p.repost_count],
+             ['📊','互動率',(p.engagement_rate||0).toFixed(3)+'%'],
+             ['👁','瀏覽',p.view_count||'—']].map(([icon,lbl,val]) => `
+          <div style="text-align:center">
+            <div style="font-size:20px;font-weight:700;color:var(--primary)">${typeof val==='number'?fmtNum(val):val}</div>
+            <div style="font-size:11px;color:var(--text2)">${icon} ${lbl}</div>
+          </div>`).join('')}
+        </div>
+      </div>
+
+      <!-- Full text -->
+      <div class="section-title">📝 文章全文</div>
+      <div class="full-text">${escHtml(p.content_text || '[無文字內容]')}</div>
+      <div style="text-align:right;margin-top:6px">
+        <a class="link" href="${p.post_url || 'https://www.threads.com/@'+p.handle}" target="_blank" style="font-size:12px">在 Threads 上查看 ↗</a>
+      </div>
+
+      ${p.summary ? `
+      <!-- LLM Analysis -->
+      <div class="section-title" style="margin-top:20px">🤖 AI 爆文診斷</div>
+      <div class="card" style="border-left:4px solid var(--primary-light);margin-bottom:16px">
+        <div style="font-size:14px;line-height:1.8;color:var(--text)">${escHtml(p.summary)}</div>
+      </div>
+
+      <div class="analysis-grid">
+        <div class="analysis-item">
+          <div class="ai-label">情緒鉤子類型</div>
+          <div class="ai-value">${hookBadge(p.hook_type)}</div>
+        </div>
+        <div class="analysis-item">
+          <div class="ai-label">內容結構</div>
+          <div class="ai-value">${escHtml(p.content_structure || '—')}</div>
+        </div>
+        <div class="analysis-item">
+          <div class="ai-label">視覺策略</div>
+          <div class="ai-value">${escHtml(p.visual_strategy || '—')}</div>
+        </div>
+        <div class="analysis-item">
+          <div class="ai-label">媒體格式</div>
+          <div class="ai-value">${escHtml(p.media_format || p.media_type || '—')}</div>
+        </div>
+      </div>
+
+      ${p.hook_sentence ? `
+      <div class="section-title">🪝 開頭鉤子句</div>
+      <div class="card" style="border-left:3px solid #f59e0b;padding:12px 16px;font-size:13px;font-style:italic;color:var(--text)">
+        「${escHtml(p.hook_sentence)}」
+      </div>
+      <div style="font-size:12px;color:var(--text2);margin-top:6px;padding:0 4px">${escHtml(p.hook_analysis || '')}</div>
+      ` : ''}
+      ` : `
+      <div class="section-title" style="margin-top:20px">🤖 AI 分析</div>
+      <div class="empty" style="padding:30px">
+        <div class="e-icon" style="font-size:32px">⏳</div>
+        <p>此文章尚未進行 LLM 分析</p>
+        <div class="e-hint">需要互動率達到帳號平均 1.5 倍才會觸發分析</div>
+      </div>
+      `}
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════════
+// TAB 5: CHARTS
+// ═══════════════════════════════════════════════════════
+function renderCharts() {
+  const grid = document.getElementById('chartGrid');
+  grid.innerHTML = `
+    <div class="chart-card"><h3>📊 各帳號發文數 (近7日)</h3><div class="chart-wrap"><canvas id="c1"></canvas></div></div>
+    <div class="chart-card"><h3>🪝 Hook 類型分布</h3><div class="chart-wrap"><canvas id="c2"></canvas></div></div>
+    <div class="chart-card"><h3>📱 媒體格式佔比</h3><div class="chart-wrap"><canvas id="c3"></canvas></div></div>
+    <div class="chart-card"><h3>🏆 帳號平均互動率 Top 10</h3><div class="chart-wrap"><canvas id="c4"></canvas></div></div>
+    <div class="chart-card"><h3>🔥 Viral Score 分布</h3><div class="chart-wrap"><canvas id="c5"></canvas></div></div>
+    <div class="chart-card"><h3>⚕️ 科別文章數分布</h3><div class="chart-wrap"><canvas id="c6"></canvas></div></div>
+  `;
+
+  const cutoff7d = new Date(Date.now() - 7 * 86400000).toISOString();
+  const COLORS = ['#1e3a5f','#2e5fa3','#64b5f6','#e84040','#f59e0b','#10b981','#8b5cf6','#ec4899','#06b6d4','#84cc16','#f97316','#6366f1'];
+
+  // C1: Posts per account (7d)
+  const c1data = G.accounts.map(a => ({
+    name: '@' + a.handle,
+    count: G.posts.filter(p => p.handle === a.handle && p.post_timestamp >= cutoff7d).length
+  })).sort((a,b) => b.count - a.count).slice(0, 12);
+  mkBar('c1', c1data.map(d => d.name), c1data.map(d => d.count), '發文數', COLORS[0]);
+
+  // C2: Hook type distribution
+  const hookCounts = {};
+  G.posts.forEach(p => { if (p.hook_type) hookCounts[p.hook_type] = (hookCounts[p.hook_type] || 0) + 1; });
+  const hookItems = Object.entries(hookCounts).sort((a,b) => b[1]-a[1]);
+  mkDoughnut('c2', hookItems.map(d => d[0]), hookItems.map(d => d[1]), COLORS);
+
+  // C3: Media type distribution
+  const mediaCounts = {};
+  G.posts.forEach(p => { const t = p.media_type || 'text'; mediaCounts[t] = (mediaCounts[t] || 0) + 1; });
+  const mediaItems = Object.entries(mediaCounts).sort((a,b) => b[1]-a[1]);
+  mkDoughnut('c3', mediaItems.map(d => d[0]), mediaItems.map(d => d[1]), COLORS.slice(3));
+
+  // C4: Avg ER per account (top 10)
+  const erByAccount = G.accounts.map(a => {
+    const acPosts = G.posts.filter(p => p.handle === a.handle && p.engagement_rate);
+    const avg = acPosts.length ? acPosts.reduce((s,p) => s+(p.engagement_rate||0), 0) / acPosts.length : 0;
+    return { name: '@' + a.handle, er: avg };
+  }).sort((a,b) => b.er - a.er).slice(0,10);
+  mkBar('c4', erByAccount.map(d => d.name), erByAccount.map(d => +d.er.toFixed(4)), '互動率(%)', COLORS[4]);
+
+  // C5: Viral score histogram
+  const vsHist = Array(10).fill(0);
+  G.posts.forEach(p => { if (p.viral_score >= 1 && p.viral_score <= 10) vsHist[p.viral_score - 1]++; });
+  mkBar('c5', ['1','2','3','4','5','6','7','8','9','10'], vsHist, '文章數',
+    vsHist.map((v, i) => i < 4 ? '#94a3b8' : i < 7 ? '#f59e0b' : '#ef4444'));
+
+  // C6: Specialty distribution
+  const specCounts = {};
+  G.posts.forEach(p => {
+    const s = p._specialty || '未分析';
+    specCounts[s] = (specCounts[s] || 0) + 1;
+  });
+  const specItems = Object.entries(specCounts).sort((a,b) => b[1]-a[1]);
+  mkDoughnut('c6', specItems.map(d => d[0]), specItems.map(d => d[1]), COLORS);
+}
+
+function mkBar(id, labels, data, label, color) {
+  new Chart(document.getElementById(id), {
+    type: 'bar',
+    data: { labels, datasets: [{ label, data, backgroundColor: Array.isArray(color) ? color : color, borderRadius: 4 }] },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { x: { ticks: { font: { size: 10 } } }, y: { ticks: { font: { size: 10 } } } } }
+  });
+}
+
+function mkDoughnut(id, labels, data, colors) {
+  new Chart(document.getElementById(id), {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data, backgroundColor: colors }] },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'right', labels: { font: { size: 11 }, boxWidth: 12 } } } }
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// MODAL
+// ═══════════════════════════════════════════════════════
+function closeModal(e) {
+  if (e.target === document.getElementById('modalOverlay'))
+    document.getElementById('modalOverlay').classList.remove('open');
+}
+
+// ═══════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════
+function fmtNum(n) {
+  if (!n && n !== 0) return '—';
+  if (n >= 10000) return (n / 10000).toFixed(1) + '萬';
+  return n.toLocaleString('zh-TW');
+}
+function fmtDate(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString('zh-TW', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+}
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function hookBadge(type) {
+  if (!type) return '';
+  const map = {
+    '恐懼':     'fear',  '反直覺': 'counter', '強烈共鳴': 'resonance',
+    '好奇':     'curiosity', '實用資訊': 'useful',
+    '爭議性':   'controversy', '溫情':  'emotion',
+  };
+  const cls = map[type] || 'other';
+  return `<span class="badge badge-${cls}">${type}</span>`;
+}
+function flagBadges(p) {
+  let b = '';
+  if (p.controversy_flag)    b += '<span class="badge badge-controversy">⚡ 爭議</span>';
+  if (p.emotional_resonance) b += '<span class="badge badge-emotion">💖 溫情</span>';
+  return b;
+}
+function vsGauge(score) {
+  const cls = score <= 4 ? 'low' : score <= 7 ? 'mid' : 'high';
+  return `<div class="vs-circle vs-${cls}">${score}</div>`;
+}
+
+// ── Boot ──────────────────────────────────────────────
+loadData();
+</script>
+</body>
+</html>
